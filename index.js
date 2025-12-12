@@ -1,5 +1,5 @@
 // server.js — safe version (no '*' route usage)
-require('dotenv').config()
+/*require('dotenv').config()
 const express = require('express')
 const cors = require('cors')
 const connectDB = require('./config/db')
@@ -47,3 +47,57 @@ app.use((err, req, res, next) => {
 })
 
 app.listen(PORT, () => console.log(`Server running on port ${PORT}`))
+*/
+
+
+// index.js — works locally (node index.js) and on Vercel (serverless)
+require('dotenv').config()
+const express = require('express')
+const cors = require('cors')
+const connectDB = require('./config/db')
+const serverless = require('serverless-http')
+
+const app = express()
+const PORT = process.env.PORT || 5000
+
+// Connect DB
+connectDB()
+
+app.use(express.json())
+
+// Simple permissive CORS for development / serverless
+app.use(cors({
+  origin: true,
+  credentials: true,
+  methods: 'GET,POST,PUT,DELETE,OPTIONS',
+  allowedHeaders: 'Content-Type,Authorization'
+}))
+
+// Ensure preflight handled
+app.use((req, res, next) => {
+  if (req.method === 'OPTIONS') return res.sendStatus(200)
+  next()
+})
+
+// Routes
+app.use('/api/auth', require('./routes/auth'))
+app.use('/api/tasks', require('./routes/tasks'))
+
+app.get('/api/health', (req, res) => res.json({ status: 'ok' }))
+
+// Error handler
+app.use((err, req, res, next) => {
+  console.error(err && err.stack ? err.stack : err)
+  res.status(err.status || 500).json({ message: err.message || 'Server error' })
+})
+
+// --- start server when run directly (local dev) ---
+if (require.main === module) {
+  app.listen(PORT, () => {
+    console.log(`Server running on port ${PORT}`)
+  })
+}
+
+// Export for serverless platforms (Vercel)
+module.exports = app
+module.exports.handler = serverless(app)
